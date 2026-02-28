@@ -386,8 +386,9 @@ footer span{color:var(--steel)}
         <div class="form-group" style="flex:0 0 auto">
           <label>利润率 <span>/ Margin</span></label>
           <div style="display:flex;align-items:center;gap:8px">
-            <input type="range" id="marginSlider" min="5" max="80" value="25" step="1" style="width:120px;accent-color:var(--amber)" oninput="document.getElementById('marginVal').textContent=this.value+'%'">
+            <input type="range" id="marginSlider" min="10" max="50" value="25" step="1" style="width:120px;accent-color:var(--amber)" oninput="document.getElementById('marginVal').textContent=this.value+'%'">
             <span id="marginVal" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--amber);min-width:40px">25%</span>
+            <span style="font-family:'IBM Plex Sans',sans-serif;font-size:12px;color:var(--text-muted);margin-left:4px">调整后可重新生成</span>
           </div>
         </div>
         <button class="btn-primary" onclick="genQuote()" style="margin-top:20px">生成报价 / Generate Quote</button>
@@ -399,7 +400,8 @@ footer span{color:var(--steel)}
       </div>
     </div>
     <div id="quoteResult"></div>
-    <button class="btn-cta-secondary" onclick="toggleContact()">📅 预约顾问演示 / Book a Demo</button>
+    <div id="viewHint" style="display:none;margin:12px 0 4px;padding:10px 14px;background:rgba(122,184,245,0.07);border-left:2px solid var(--steel);border-radius:0 4px 4px 0;font-family:'IBM Plex Sans',sans-serif;font-size:13px;color:var(--text-secondary)">💡 切换到「内部视图」可查看成本与利润明细</div>
+    <button class="btn-cta-secondary" id="ctaBtn" onclick="toggleContact()" style="display:none">📅 预约顾问演示 / Book a Demo</button>
     <div class="contact-card" id="contactCard">
       📞 联系顾问<br>
       微信：<strong>hd-hardware-sales</strong><br>
@@ -584,6 +586,9 @@ async function genQuote() {
       finishDemoSteps();
       if (!r.ok) { msgEl.innerHTML = `<div class="msg err">${d.detail}</div>`; return; }
       renderQuote(d, false);
+      document.getElementById('ctaBtn').style.display = '';
+      const hint = document.getElementById('viewHint');
+      if (hint) { hint.style.display = ''; }
     } catch(e) {
       finishDemoSteps();
       msgEl.innerHTML = `<div class="msg err">请求失败 / Request failed: ${e.message}</div>`;
