@@ -477,6 +477,7 @@ footer span{color:var(--steel)}
         <div class="card-title" style="margin-bottom:0">价格库 · Price Database</div>
         <div class="table-info" id="priceCount">加载中...</div>
       </div>
+      <input id="priceFilter" placeholder="筛选品名/规格/供应商..." oninput="filterPrices()" style="margin-bottom:12px;width:100%">
       <table class="price-table">
         <thead>
           <tr>
@@ -502,7 +503,7 @@ footer span{color:var(--steel)}
 </div><!-- main-content -->
 </div><!-- page-layout -->
 
-<footer>Powered by <span>AI</span> · 智能制造解决方案 / Intelligent Manufacturing Solutions</footer>
+<footer>Powered by <span>AI</span> · 外贸报价智能化 / Smart Quotation for Trade</footer>
 
 <!-- LOGIN OVERLAY -->
 <div class="login-overlay" id="loginOverlay">
@@ -666,22 +667,39 @@ async function loadPrices() {
   try {
     const r = await fetch('/scene1/api/prices', {headers: H});
     const items = await r.json();
+    window._allPrices = items;
     count.textContent = `共 ${items.length} 条 / ${items.length} records`;
     if (!items.length) {
-      body.innerHTML = '<tr><td colspan="6" style="color:var(--text-muted);padding:20px 12px">暂无数据 / No data</td></tr>';
+      body.innerHTML = '<tr><td colspan="5" style="color:var(--text-muted);padding:20px 12px">暂无数据 / No data</td></tr>';
       return;
     }
-    body.innerHTML = items.map(it => `
-      <tr>
-        <td class="name">${it.name}</td>
-        <td>${it.spec}</td>
-        <td class="price">¥${it.price}</td>
-        <td class="unit">${it.unit}</td>
-        <td>${it.supplier}</td>
-      </tr>`).join('');
+    renderPriceRows(items);
   } catch(e) {
     body.innerHTML = `<tr><td colspan="5" class="msg err">加载失败: ${e.message}</td></tr>`;
   }
+}
+
+function renderPriceRows(items) {
+  document.getElementById('priceBody').innerHTML = items.map(it => `
+    <tr>
+      <td class="name">${it.name}</td>
+      <td>${it.spec}</td>
+      <td class="price">¥${it.price}</td>
+      <td class="unit">${it.unit}</td>
+      <td>${it.supplier}</td>
+    </tr>`).join('');
+}
+
+function filterPrices() {
+  const q = document.getElementById('priceFilter').value.trim().toLowerCase();
+  const items = window._allPrices || [];
+  const filtered = q ? items.filter(it =>
+    (it.name||'').toLowerCase().includes(q) ||
+    (it.spec||'').toLowerCase().includes(q) ||
+    (it.supplier||'').toLowerCase().includes(q)
+  ) : items;
+  renderPriceRows(filtered);
+  document.getElementById('priceCount').textContent = `共 ${filtered.length} 条 / ${filtered.length} records`;
 }
 
 async function addPrice() {
@@ -724,6 +742,28 @@ async function importText() {
     const r = await fetch('/scene1/api/prices/import-text', {method:'POST', headers:H, body:JSON.stringify({text})});
     const d = await r.json();
     if (r.ok) {
+      const rows = d.preview.map(it => `<tr><td class="name">${it.name}</td><td>${it.spec}</td><td class="price">¥${it.price}</td><td>${it.unit}</td><td>${it.supplier}</td></tr>`).join('');
+      msgEl.innerHTML = `
+        <div style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--amber);margin-bottom:8px">AI 识别到 ${d.preview.length} 条，确认导入？</div>
+        <table class="price-table" style="margin-bottom:12px"><thead><tr><th>品名</th><th>规格</th><th>单价</th><th>单位</th><th>供应商</th></tr></thead><tbody>${rows}</tbody></table>
+        <button class="btn-primary" style="margin-top:0" onclick="confirmImport(${JSON.stringify(d.preview).replace(/"/g,'&quot;')})">确认导入 / Confirm</button>
+        <button class="btn-secondary" style="margin-left:8px" onclick="document.getElementById('pasteMsg').innerHTML=''">取消</button>`;
+    } else {
+      msgEl.innerHTML = `<div class="msg err">${d.detail}</div>`;
+    }
+  } catch(e) {
+    msgEl.innerHTML = `<div class="msg err">请求失败: ${e.message}</div>`;
+  }
+  btn.disabled = false;
+}
+
+async function confirmImport(items) {
+  const msgEl = document.getElementById('pasteMsg');
+  msgEl.innerHTML = '<div class="msg ok">导入中...</div>';
+  try {
+    const r = await fetch('/scene1/api/prices/import-confirm', {method:'POST', headers:H, body:JSON.stringify({items})});
+    const d = await r.json();
+    if (r.ok) {
       msgEl.innerHTML = `<div class="msg ok">✓ 成功导入 ${d.imported} 条${d.failed ? '，失败 '+d.failed+' 条' : ''}</div>`;
       document.getElementById('pasteText').value = '';
       loadPrices();
@@ -733,7 +773,6 @@ async function importText() {
   } catch(e) {
     msgEl.innerHTML = `<div class="msg err">请求失败: ${e.message}</div>`;
   }
-  btn.disabled = false;
 }
 
 async function importFile(file) {

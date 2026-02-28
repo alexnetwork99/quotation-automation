@@ -187,6 +187,7 @@ class ImportTextRequest(BaseModel):
 
 @app.post("/scene1/api/prices/import-text")
 async def import_text(req: ImportTextRequest, _=Depends(verify_token)):
+    """AI 解析文本，返回预览列表（不写入）"""
     prompt = f"""从以下文本中提取产品价格信息，返回 JSON 数组，每项包含：supplier（供应商）、name（品名）、spec（规格）、unit（单位）、price（单价，数字）。
 若某字段无法确定，supplier 默认"未知供应商"，spec 默认"-"，unit 默认"个"。
 只返回 JSON 数组，不要 markdown。
@@ -202,7 +203,15 @@ async def import_text(req: ImportTextRequest, _=Depends(verify_token)):
         items = json.loads(raw)
     except Exception:
         raise HTTPException(status_code=500, detail=f"AI 解析失败: {raw[:200]}")
-    return await _bulk_insert(items)
+    return {"preview": items}
+
+class ImportConfirmRequest(BaseModel):
+    items: list
+
+@app.post("/scene1/api/prices/import-confirm")
+async def import_confirm(req: ImportConfirmRequest, _=Depends(verify_token)):
+    """确认写入预览列表"""
+    return await _bulk_insert(req.items)
 
 @app.post("/scene1/api/prices/import-file")
 async def import_file(file: UploadFile = File(...), _=Depends(verify_token)):
@@ -224,12 +233,15 @@ async def import_file(file: UploadFile = File(...), _=Depends(verify_token)):
         col = {h: i for i, h in enumerate(headers)}
         for row in ws.iter_rows(min_row=2, values_only=True):
             try:
+                p = float(row[col.get("单价", 4)] or 0)
+                if p <= 0:
+                    continue
                 items.append({
                     "supplier": str(row[col.get("供应商", 0)] or "未知供应商"),
                     "name": str(row[col.get("品名", 1)] or ""),
                     "spec": str(row[col.get("规格", 2)] or "-"),
                     "unit": str(row[col.get("单位", 3)] or "个"),
-                    "price": float(row[col.get("单价", 4)] or 0),
+                    "price": p,
                 })
             except Exception:
                 continue
