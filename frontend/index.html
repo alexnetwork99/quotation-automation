@@ -281,8 +281,8 @@ footer span{color:var(--steel)}
 }
 
 /* ── 场景简介侧栏 ─────────────────────────────────────────────────────────── */
-.page-layout{display:flex;min-height:calc(100vh - 64px)}
-.sidebar{width:260px;min-width:260px;background:rgba(10,18,35,0.95);border-right:1px solid rgba(122,184,245,0.2);padding:28px 20px;position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto;transition:transform 0.3s}
+.page-layout{display:flex;height:calc(100vh - 64px);overflow:hidden}
+.sidebar{width:360px;min-width:360px;background:rgba(10,18,35,0.95);border-right:1px solid rgba(122,184,245,0.2);padding:28px 20px;position:sticky;top:64px;height:calc(100vh - 64px);overflow-y:auto;transition:transform 0.3s}
 .sidebar-title{font-family:'Rajdhani',sans-serif;font-size:15px;font-weight:600;color:#7ab8f5;letter-spacing:2px;text-transform:uppercase;margin-bottom:20px;padding-bottom:10px;border-bottom:1px solid rgba(122,184,245,0.2)}
 .sidebar-desc{font-family:'IBM Plex Sans',sans-serif;font-size:15px;color:rgba(200,220,255,0.75);line-height:1.7;margin-bottom:24px}
 .sidebar-steps-title{font-family:'IBM Plex Mono',monospace;font-size:13px;color:#f5a623;letter-spacing:1.5px;text-transform:uppercase;margin-bottom:12px}
@@ -292,7 +292,7 @@ footer span{color:var(--steel)}
 .sidebar-steps{counter-reset:step}
 .sidebar-audience{font-family:'IBM Plex Sans',sans-serif;font-size:14px;color:rgba(200,220,255,0.55);line-height:1.6;padding:10px 12px;background:rgba(122,184,245,0.05);border-left:2px solid rgba(245,166,35,0.4);border-radius:0 4px 4px 0}
 .sidebar-audience-label{font-family:'IBM Plex Mono',monospace;font-size:12px;color:#f5a623;letter-spacing:1px;display:block;margin-bottom:4px}
-.main-content{flex:1;min-width:0}
+.main-content{flex:1;min-width:0;overflow-y:auto;height:100%}
 .sidebar-toggle{display:none;position:fixed;left:0;top:50%;transform:translateY(-50%);z-index:100;background:rgba(10,18,35,0.95);border:1px solid rgba(122,184,245,0.3);border-left:none;border-radius:0 6px 6px 0;padding:10px 6px;cursor:pointer;color:#7ab8f5;font-size:18px;writing-mode:vertical-rl}
 @media(max-width:768px){
   .sidebar{position:fixed;left:0;top:0;height:100vh;z-index:200;transform:translateX(-100%)}
@@ -347,13 +347,13 @@ footer span{color:var(--steel)}
 <div class="page-layout">
 <aside class="sidebar" id="sidebar">
   <div class="sidebar-title">场景简介 / Overview</div>
-  <p class="sidebar-desc">外贸业务员每天面对大量询价邮件，手动查价格、算利润、写报价单耗时费力。本系统通过向量检索价格库，输入客户询价内容，30秒内自动生成专业报价单。</p>
+  <p class="sidebar-desc">外贸业务员每天面对大量询价邮件，手动查价格、算利润、写报价单耗时费力。本系统支持批量导入价格库、AI 自然语言管理条目，输入客户询价后自动匹配并生成报价单，支持利润率实时调节、客户/内部双视图切换，一键导出 Excel。</p>
   <div class="sidebar-steps-title">使用步骤</div>
   <ol class="sidebar-steps">
-    <li>在输入框填写客户询价内容（产品名称、规格、数量）</li>
-    <li>点击「生成报价单」</li>
-    <li>系统自动检索价格库并计算</li>
-    <li>查看生成的报价单，确认后复制发送</li>
+    <li>在「价格库」标签导入或管理产品价格数据</li>
+    <li>切换到「智能报价」，填写客户询价内容</li>
+    <li>拖动利润率滑块，点击「生成报价」</li>
+    <li>切换客户/内部视图，确认后导出 Excel</li>
   </ol>
   <div class="sidebar-audience">
     <span class="sidebar-audience-label">适用对象</span>
