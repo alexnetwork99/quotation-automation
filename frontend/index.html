@@ -678,10 +678,9 @@ async function loadPrices() {
         <td class="price">¥${it.price}</td>
         <td class="unit">${it.unit}</td>
         <td>${it.supplier}</td>
-        <td><button class="btn-danger" onclick="delPrice('${it.id}')">删除</button></td>
       </tr>`).join('');
   } catch(e) {
-    body.innerHTML = `<tr><td colspan="6" class="msg err">加载失败: ${e.message}</td></tr>`;
+    body.innerHTML = `<tr><td colspan="5" class="msg err">加载失败: ${e.message}</td></tr>`;
   }
 }
 
