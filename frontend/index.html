@@ -233,6 +233,15 @@ textarea{resize:vertical;min-height:90px}
 .price-table td.name{color:var(--text-primary);font-weight:500}
 .price-table td.price{font-family:'IBM Plex Mono',monospace;color:var(--amber)}
 .price-table td.unit{font-family:'IBM Plex Mono',monospace;font-size:14px;color:var(--text-muted)}
+/* SUB TABS */
+.sub-tabs{display:flex;gap:0;margin-bottom:20px;border:1px solid var(--border);border-radius:6px;overflow:hidden}
+.sub-tab-btn{flex:1;font-family:'IBM Plex Mono',monospace;font-size:13px;letter-spacing:0.08em;text-transform:uppercase;color:var(--text-muted);background:transparent;border:none;padding:10px 16px;cursor:pointer;transition:all 0.2s}
+.sub-tab-btn.active{background:rgba(74,144,217,0.12);color:var(--steel-light)}
+.sub-tab-btn:not(:last-child){border-right:1px solid var(--border)}
+.sub-panel{display:none}.sub-panel.active{display:block}
+/* DROP ZONE */
+.drop-zone{border:2px dashed var(--border-glow);border-radius:6px;padding:32px;text-align:center;cursor:pointer;transition:all 0.2s;color:var(--text-muted);font-family:'IBM Plex Mono',monospace;font-size:14px}
+.drop-zone:hover,.drop-zone.drag-over{border-color:var(--steel);color:var(--steel);background:rgba(74,144,217,0.05)}
 /* ADD FORM */
 .add-grid{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:16px}
 /* FOOTER */
@@ -394,47 +403,80 @@ footer span{color:var(--steel)}
   <!-- TAB2 -->
   <div id="tab-db" class="tab-panel">
     <div class="card">
-      <div class="card-title">添加产品 · Add Product</div>
-      <div class="add-grid">
-        <div class="form-group">
-          <label>供应商 <span>/ Supplier</span></label>
-          <input id="ns" placeholder="宏达五金">
-        </div>
-        <div class="form-group">
-          <label>品名 <span>/ Product Name</span></label>
-          <input id="nn" placeholder="六角螺栓">
-        </div>
-        <div class="form-group">
-          <label>规格 <span>/ Spec</span></label>
-          <input id="nsp" placeholder="M8×30">
-        </div>
-        <div class="form-group">
-          <label>单位 <span>/ Unit</span></label>
-          <input id="nu" placeholder="个">
-        </div>
+      <div class="card-title">批量导入 · Bulk Import</div>
+      <div class="sub-tabs">
+        <button class="sub-tab-btn active" onclick="switchSubTab('paste',this)">AI 解析粘贴 / Paste &amp; Parse</button>
+        <button class="sub-tab-btn" onclick="switchSubTab('file',this)">文件上传 / Upload File</button>
+        <button class="sub-tab-btn" onclick="switchSubTab('manual',this)">手动添加 / Manual</button>
       </div>
-      <div class="form-group" style="max-width:200px">
-        <label>单价（元）<span>/ Unit Price</span></label>
-        <input id="np" type="number" step="0.01" placeholder="0.12">
+
+      <!-- 粘贴导入 -->
+      <div id="sub-paste" class="sub-panel active">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-muted);margin-bottom:12px">粘贴供应商发来的任意格式报价，AI 自动识别并导入</div>
+        <textarea id="pasteText" style="min-height:160px" placeholder="例如：
+宏达五金报价
+六角螺栓 M8×30  0.12元/个
+六角螺母 M8     0.07元/个
+平垫圈 M8       0.04元/个
+
+或直接粘贴邮件/微信中的报价内容..."></textarea>
+        <button class="btn-primary" onclick="importText()" style="margin-top:12px">AI 解析导入 / Parse &amp; Import</button>
+        <div id="pasteMsg"></div>
       </div>
-      <button class="btn-primary" onclick="addPrice()" style="margin-top:16px">添加 / Add</button>
-      <div id="addMsg"></div>
-      <div style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-muted)">💡 支持 Excel 批量导入，初始数据我们协助迁移</div>
+
+      <!-- 文件上传 -->
+      <div id="sub-file" class="sub-panel">
+        <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-muted);margin-bottom:12px">支持 .txt（供应商报价格式）或 .xlsx（列：供应商、品名、规格、单位、单价）</div>
+        <div class="drop-zone" id="dropZone" onclick="document.getElementById('fileInput').click()" ondragover="event.preventDefault();this.classList.add('drag-over')" ondragleave="this.classList.remove('drag-over')" ondrop="handleDrop(event)">
+          拖拽文件到此处，或点击选择文件<br>
+          <span style="font-size:12px;opacity:0.6">支持 .txt / .xlsx</span>
+        </div>
+        <input type="file" id="fileInput" accept=".txt,.xlsx,.xls" style="display:none" onchange="importFile(this.files[0])">
+        <div id="fileMsg"></div>
+      </div>
+
+      <!-- 手动添加 -->
+      <div id="sub-manual" class="sub-panel">
+        <div class="add-grid">
+          <div class="form-group">
+            <label>供应商 <span>/ Supplier</span></label>
+            <input id="ns" placeholder="宏达五金">
+          </div>
+          <div class="form-group">
+            <label>品名 <span>/ Product Name</span></label>
+            <input id="nn" placeholder="六角螺栓">
+          </div>
+          <div class="form-group">
+            <label>规格 <span>/ Spec</span></label>
+            <input id="nsp" placeholder="M8×30">
+          </div>
+          <div class="form-group">
+            <label>单位 <span>/ Unit</span></label>
+            <input id="nu" placeholder="个">
+          </div>
+        </div>
+        <div class="form-group" style="max-width:200px">
+          <label>单价（元）<span>/ Unit Price</span></label>
+          <input id="np" type="number" step="0.01" placeholder="0.12">
+        </div>
+        <button class="btn-primary" onclick="addPrice()" style="margin-top:16px">添加 / Add</button>
+        <div id="addMsg"></div>
+      </div>
     </div>
+
     <div class="card">
       <div class="table-toolbar">
         <div class="card-title" style="margin-bottom:0">价格库 · Price Database</div>
-        <div class="table-info" id="priceCount">加载中...</div>
+        <div style="display:flex;align-items:center;gap:12px">
+          <div class="table-info" id="priceCount">加载中...</div>
+          <button class="btn-danger" onclick="clearPrices()" style="font-size:12px;padding:3px 10px">清空 / Clear</button>
+        </div>
       </div>
       <table class="price-table">
         <thead>
           <tr>
-            <th>品名 / Product</th>
-            <th>规格 / Spec</th>
-            <th>单价 / Price</th>
-            <th>单位 / Unit</th>
-            <th>供应商 / Supplier</th>
-            <th></th>
+            <th>品名 / Product</th><th>规格 / Spec</th><th>单价 / Price</th>
+            <th>单位 / Unit</th><th>供应商 / Supplier</th><th></th>
           </tr>
         </thead>
         <tbody id="priceBody"><tr><td colspan="6" style="color:var(--text-muted);padding:20px 12px">加载中... / Loading...</td></tr></tbody>
@@ -626,7 +668,69 @@ async function addPrice() {
   }
 }
 
-function toggleContact_placeholder(){}
+function switchSubTab(name, btn) {
+  document.querySelectorAll('.sub-panel').forEach(p => p.classList.remove('active'));
+  document.querySelectorAll('.sub-tab-btn').forEach(b => b.classList.remove('active'));
+  document.getElementById('sub-' + name).classList.add('active');
+  btn.classList.add('active');
+}
+
+async function importText() {
+  const text = document.getElementById('pasteText').value.trim();
+  const msgEl = document.getElementById('pasteMsg');
+  if (!text) { msgEl.innerHTML = '<div class="msg err">请先粘贴内容</div>'; return; }
+  msgEl.innerHTML = '<div class="msg ok">AI 解析中...</div>';
+  const btn = event.target; btn.disabled = true;
+  try {
+    const r = await fetch('/scene1/api/prices/import-text', {method:'POST', headers:H, body:JSON.stringify({text})});
+    const d = await r.json();
+    if (r.ok) {
+      msgEl.innerHTML = `<div class="msg ok">✓ 成功导入 ${d.imported} 条${d.failed ? '，失败 '+d.failed+' 条' : ''}</div>`;
+      document.getElementById('pasteText').value = '';
+      loadPrices();
+    } else {
+      msgEl.innerHTML = `<div class="msg err">${d.detail}</div>`;
+    }
+  } catch(e) {
+    msgEl.innerHTML = `<div class="msg err">请求失败: ${e.message}</div>`;
+  }
+  btn.disabled = false;
+}
+
+async function importFile(file) {
+  if (!file) return;
+  const msgEl = document.getElementById('fileMsg');
+  msgEl.innerHTML = '<div class="msg ok">上传解析中...</div>';
+  const fd = new FormData();
+  fd.append('file', file);
+  try {
+    const r = await fetch('/scene1/api/prices/import-file', {method:'POST', headers:{'X-API-Key': TOKEN}, body: fd});
+    const d = await r.json();
+    if (r.ok) {
+      msgEl.innerHTML = `<div class="msg ok">✓ 成功导入 ${d.imported} 条${d.failed ? '，失败 '+d.failed+' 条' : ''}</div>`;
+      loadPrices();
+    } else {
+      msgEl.innerHTML = `<div class="msg err">${d.detail}</div>`;
+    }
+  } catch(e) {
+    msgEl.innerHTML = `<div class="msg err">请求失败: ${e.message}</div>`;
+  }
+  document.getElementById('fileInput').value = '';
+}
+
+function handleDrop(e) {
+  e.preventDefault();
+  document.getElementById('dropZone').classList.remove('drag-over');
+  const file = e.dataTransfer.files[0];
+  if (file) importFile(file);
+}
+
+async function clearPrices() {
+  if (!confirm('确认清空全部价格库？此操作不可恢复。')) return;
+  const r = await fetch('/scene1/api/prices', {method:'DELETE', headers:H});
+  const d = await r.json();
+  if (r.ok) loadPrices();
+}
 async function delPrice(id) {
   if (!confirm('确认删除？/ Confirm delete?')) return;
   await fetch(`/scene1/api/prices/${id}`, {method:'DELETE', headers:H});

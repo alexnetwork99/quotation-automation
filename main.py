@@ -6,7 +6,7 @@ import re
 import json
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Depends
+from fastapi import FastAPI, HTTPException, Depends, UploadFile, File
 from fastapi.security import APIKeyHeader
 from fastapi.responses import HTMLResponse
 from pydantic import BaseModel
@@ -162,6 +162,88 @@ async def add_price(item: PriceItem, _=Depends(verify_token)):
 async def delete_price(doc_id: str, _=Depends(verify_token)):
     collection.delete(ids=[doc_id])
     return {"status": "ok"}
+
+@app.delete("/scene1/api/prices", dependencies=[Depends(verify_token)])
+async def clear_prices():
+    ids = collection.get(include=[])["ids"]
+    if ids:
+        collection.delete(ids=ids)
+    return {"status": "ok", "deleted": len(ids)}
+
+class ImportTextRequest(BaseModel):
+    text: str
+
+@app.post("/scene1/api/prices/import-text")
+async def import_text(req: ImportTextRequest, _=Depends(verify_token)):
+    prompt = f"""从以下文本中提取产品价格信息，返回 JSON 数组，每项包含：supplier（供应商）、name（品名）、spec（规格）、unit（单位）、price（单价，数字）。
+若某字段无法确定，supplier 默认"未知供应商"，spec 默认"-"，unit 默认"个"。
+只返回 JSON 数组，不要 markdown。
+
+文本：
+{req.text}"""
+    resp = zhipu.chat.completions.create(
+        model=GLM_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = resp.choices[0].message.content.strip()
+    try:
+        items = json.loads(raw)
+    except Exception:
+        raise HTTPException(status_code=500, detail=f"AI 解析失败: {raw[:200]}")
+    return await _bulk_insert(items)
+
+@app.post("/scene1/api/prices/import-file")
+async def import_file(file: UploadFile = File(...), _=Depends(verify_token)):
+    content = await file.read()
+    filename = file.filename or ""
+    items = []
+    if filename.endswith(".txt"):
+        import tempfile, os
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".txt") as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        items = parse_price_file(Path(tmp_path))
+        os.unlink(tmp_path)
+    elif filename.endswith((".xlsx", ".xls")):
+        import openpyxl, io
+        wb = openpyxl.load_workbook(io.BytesIO(content))
+        ws = wb.active
+        headers = [str(c.value).strip() if c.value else "" for c in next(ws.iter_rows(min_row=1, max_row=1))]
+        col = {h: i for i, h in enumerate(headers)}
+        for row in ws.iter_rows(min_row=2, values_only=True):
+            try:
+                items.append({
+                    "supplier": str(row[col.get("供应商", 0)] or "未知供应商"),
+                    "name": str(row[col.get("品名", 1)] or ""),
+                    "spec": str(row[col.get("规格", 2)] or "-"),
+                    "unit": str(row[col.get("单位", 3)] or "个"),
+                    "price": float(row[col.get("单价", 4)] or 0),
+                })
+            except Exception:
+                continue
+    else:
+        raise HTTPException(status_code=400, detail="仅支持 .txt / .xlsx 文件")
+    return await _bulk_insert(items)
+
+async def _bulk_insert(items: list) -> dict:
+    import uuid
+    ok, fail = 0, 0
+    for item in items:
+        try:
+            doc_id = str(uuid.uuid4())
+            text = f"{item['name']} {item['spec']} 供应商:{item['supplier']}"
+            collection.add(
+                ids=[doc_id],
+                embeddings=[embed(text)],
+                documents=[text],
+                metadatas=[{"supplier": str(item["supplier"]), "name": str(item["name"]),
+                            "spec": str(item["spec"]), "unit": str(item["unit"]),
+                            "price": float(item["price"])}],
+            )
+            ok += 1
+        except Exception:
+            fail += 1
+    return {"imported": ok, "failed": fail}
 
 
 
