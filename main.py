@@ -255,14 +255,20 @@ async def delete_by_query(req: DeleteQueryRequest, _=Depends(verify_token)):
 
 用户指令：{req.query}
 
-请找出符合用户指令的条目，返回 JSON 数组，每项包含 id 字段。只返回 JSON 数组，不要 markdown。"""
+请找出符合用户指令的条目，只返回 JSON 数组，格式如下，不要 markdown，不要其他文字：
+[{{"id": "条目id1"}}, {{"id": "条目id2"}}]"""
     resp = zhipu.chat.completions.create(
         model=GLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
     )
     raw = strip_json(resp.choices[0].message.content)
     try:
-        matched_ids = [item["id"] for item in json.loads(raw)]
+        parsed = json.loads(raw)
+        # 兼容 [{"id": "xxx"}] 和 ["xxx"] 两种格式
+        if parsed and isinstance(parsed[0], str):
+            matched_ids = parsed
+        else:
+            matched_ids = [item["id"] for item in parsed]
     except Exception:
         raise HTTPException(status_code=500, detail=f"AI 解析失败: {raw[:200]}")
     matches = [
