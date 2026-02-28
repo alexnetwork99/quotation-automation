@@ -382,8 +382,16 @@ footer span{color:var(--steel)}
         <label>询价内容 <span>/ Inquiry Details</span></label>
         <textarea id="inquiry" placeholder="例如：需要 M8×30 六角螺栓 500个，M8螺母 500个&#10;e.g. 500pcs M8×30 hex bolts, 500pcs M8 nuts"></textarea>
       </div>
-      <button class="btn-primary" onclick="genQuote()">生成报价 / Generate Quote</button>
-      <div id="quoteMsg"></div>
+      <div style="display:flex;align-items:center;gap:16px;margin-top:12px">
+        <div class="form-group" style="flex:0 0 auto">
+          <label>利润率 <span>/ Margin</span></label>
+          <div style="display:flex;align-items:center;gap:8px">
+            <input type="range" id="marginSlider" min="5" max="80" value="25" step="1" style="width:120px;accent-color:var(--amber)" oninput="document.getElementById('marginVal').textContent=this.value+'%'">
+            <span id="marginVal" style="font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--amber);min-width:40px">25%</span>
+          </div>
+        </div>
+        <button class="btn-primary" onclick="genQuote()" style="margin-top:20px">生成报价 / Generate Quote</button>
+      </div>      <div id="quoteMsg"></div>
       <div class="demo-steps" id="demoSteps" style="display:none">
         <div class="demo-step" id="step1"><span class="step-icon">🔍</span><span class="step-text">向量化询价内容...</span><div class="step-bar"><div class="step-bar-fill"></div></div><div class="step-spin"></div></div>
         <div class="demo-step" id="step2"><span class="step-icon">⚡</span><span class="step-text">检索价格库匹配...</span><div class="step-bar"><div class="step-bar-fill"></div></div><div class="step-spin"></div></div>
@@ -555,54 +563,79 @@ async function genQuote() {
   const inquiryEl = document.getElementById('inquiry');
   if (!inquiryEl.value.trim()) inquiryEl.value = '需要 M8×30 六角螺栓 500个，M8螺母 500个';
   const inquiry = inquiryEl.value.trim();
+  const margin = parseInt(document.getElementById('marginSlider').value) / 100;
   const msgEl = document.getElementById('quoteMsg');
   const resultEl = document.getElementById('quoteResult');
   msgEl.innerHTML = '';
   resultEl.innerHTML = '';
   runDemoSteps(async () => {
     try {
-      const r = await fetch('/scene1/api/quote', {method:'POST', headers:H, body:JSON.stringify({inquiry})});
+      const r = await fetch('/scene1/api/quote', {method:'POST', headers:H, body:JSON.stringify({inquiry, margin})});
       const d = await r.json();
       window._lastQuoteData = d;
       finishDemoSteps();
       if (!r.ok) { msgEl.innerHTML = `<div class="msg err">${d.detail}</div>`; return; }
-      const rows = d.items.map(it => `
-        <tr>
-          <td class="name">${it.name}</td><td>${it.spec}</td>
-          <td class="price">¥${it.unit_price}/${it.unit}</td>
-          <td>${it.quantity}</td><td class="price">¥${it.total}</td>
-          <td class="tag"><span>${it.supplier}</span></td>
-        </tr>`).join('');
-      resultEl.innerHTML = `
-        <div class="result-card">
-          <div class="result-header">
-            <div>
-              <div class="result-title">报价单 / Quotation</div>
-              <div class="result-subtitle">QUO-${Date.now().toString().slice(-8)} · ${new Date().toLocaleDateString('zh-CN')}</div>
-            </div>
-            <div class="result-badge">✓ 匹配成功 / Matched</div>
-          </div>
-          <table class="quote-table">
-            <thead><tr>
-              <th>品名/Product</th><th>规格/Spec</th><th>单价/Price</th>
-              <th>数量/Qty</th><th>小计/Sub</th><th>供应商/Supplier</th>
-            </tr></thead>
-            <tbody>${rows}</tbody>
-          </table>
-          <div class="result-total">
-            <div class="result-total-label">总报价 / Total Quote</div>
-            <div class="result-total-value">¥${d.total_amount}</div>
-          </div>
-          ${d.note ? `<div class="result-note">备注 / Note: ${d.note}</div>` : ''}
-          <div style="margin-top:16px;text-align:right">
-            <button class="btn-secondary" onclick="exportXlsx()">&#11015; 导出 Excel / Export</button>
-          </div>
-        </div>`;
+      renderQuote(d, false);
     } catch(e) {
       finishDemoSteps();
       msgEl.innerHTML = `<div class="msg err">请求失败 / Request failed: ${e.message}</div>`;
     }
   });
+}
+
+function renderQuote(d, internal) {
+  const resultEl = document.getElementById('quoteResult');
+  const profit = d.total_amount - (d.total_cost || 0);
+  const marginPct = d.total_cost ? Math.round(profit / d.total_cost * 100) : 0;
+  const rows = d.items.map(it => internal ? `
+    <tr>
+      <td class="name">${it.name}</td><td>${it.spec}</td>
+      <td class="price" style="color:var(--text-muted)">¥${it.cost_price||'-'}/${it.unit}</td>
+      <td class="price">¥${it.unit_price}/${it.unit}</td>
+      <td>${it.quantity}</td>
+      <td class="price" style="color:var(--success)">¥${((it.unit_price-(it.cost_price||0))*it.quantity).toFixed(2)}</td>
+      <td class="tag"><span>${it.supplier}</span></td>
+    </tr>` : `
+    <tr>
+      <td class="name">${it.name}</td><td>${it.spec}</td>
+      <td class="price">¥${it.unit_price}/${it.unit}</td>
+      <td>${it.quantity}</td><td class="price">¥${it.total}</td>
+      <td class="tag"><span>${it.supplier}</span></td>
+    </tr>`).join('');
+
+  const thead = internal
+    ? `<th>品名</th><th>规格</th><th style="color:var(--text-muted)">成本价</th><th>报价</th><th>数量</th><th style="color:var(--success)">利润</th><th>供应商</th>`
+    : `<th>品名/Product</th><th>规格/Spec</th><th>单价/Price</th><th>数量/Qty</th><th>小计/Sub</th><th>供应商/Supplier</th>`;
+
+  resultEl.innerHTML = `
+    <div class="result-card">
+      <div class="result-header">
+        <div>
+          <div class="result-title">报价单 / Quotation</div>
+          <div class="result-subtitle">QUO-${Date.now().toString().slice(-8)} · ${new Date().toLocaleDateString('zh-CN')}</div>
+        </div>
+        <div style="display:flex;gap:8px;align-items:center">
+          <button onclick="renderQuote(window._lastQuoteData,false)" class="btn-secondary" style="font-size:12px;padding:4px 12px${!internal?';border-color:var(--steel);color:var(--steel)':''}">客户视图</button>
+          <button onclick="renderQuote(window._lastQuoteData,true)" class="btn-secondary" style="font-size:12px;padding:4px 12px${internal?';border-color:var(--amber);color:var(--amber)':''}">内部视图</button>
+        </div>
+      </div>
+      ${internal && d.total_cost ? `<div style="display:flex;gap:16px;margin-bottom:16px;font-family:'IBM Plex Mono',monospace;font-size:13px">
+        <span style="color:var(--text-muted)">总成本 ¥${d.total_cost}</span>
+        <span style="color:var(--success)">利润 ¥${profit.toFixed(2)} (${marginPct}%)</span>
+      </div>` : ''}
+      <table class="quote-table">
+        <thead><tr>${thead}</tr></thead>
+        <tbody>${rows}</tbody>
+      </table>
+      <div class="result-total">
+        <div class="result-total-label">总报价 / Total Quote</div>
+        <div class="result-total-value">¥${d.total_amount}</div>
+      </div>
+      ${d.note ? `<div class="result-note">备注 / Note: ${d.note}</div>` : ''}
+      <div style="margin-top:16px;text-align:right">
+        <button class="btn-secondary" onclick="exportXlsx()">&#11015; 导出 Excel / Export</button>
+      </div>
+    </div>`;
 }
 function exportXlsx() {
   const d = window._lastQuoteData;

@@ -84,6 +84,7 @@ init_price_library()
 # ── Models ────────────────────────────────────────────────────────────────────
 class QuoteRequest(BaseModel):
     inquiry: str
+    margin: float = 0.25  # 利润率，默认 25%
 
 class PriceItem(BaseModel):
     supplier: str
@@ -111,15 +112,19 @@ async def generate_quote(req: QuoteRequest, _=Depends(verify_token)):
 
 客户询价：{req.inquiry}
 
-候选产品：
+候选产品（成本价）：
 {candidates_text}
+
+利润率：{int(req.margin * 100)}%
+客户报价 = 成本价 × (1 + 利润率)
 
 请从候选产品中选择最匹配的产品，生成报价单。返回 JSON 格式：
 {{
   "items": [
-    {{"name": "产品名", "spec": "规格", "unit": "单位", "unit_price": 单价, "quantity": 数量, "total": 小计, "supplier": "供应商"}}
+    {{"name": "产品名", "spec": "规格", "unit": "单位", "cost_price": 成本单价, "unit_price": 客户单价, "quantity": 数量, "total": 客户小计, "supplier": "供应商"}}
   ],
-  "total_amount": 总金额,
+  "total_amount": 客户总金额,
+  "total_cost": 总成本,
   "note": "备注"
 }}
 JSON only, no markdown."""
