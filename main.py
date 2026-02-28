@@ -230,6 +230,49 @@ async def import_file(file: UploadFile = File(...), _=Depends(verify_token)):
         raise HTTPException(status_code=400, detail="仅支持 .txt / .xlsx 文件")
     return await _bulk_insert(items)
 
+class DeleteQueryRequest(BaseModel):
+    query: str
+
+@app.post("/scene1/api/prices/delete-by-query")
+async def delete_by_query(req: DeleteQueryRequest, _=Depends(verify_token)):
+    """AI 解析自然语言，返回匹配条目供前端预览（不直接删除）"""
+    all_items = collection.get(include=["metadatas"])
+    if not all_items["ids"]:
+        return {"matches": []}
+    items_text = "\n".join(
+        f"id:{doc_id} 品名:{m['name']} 规格:{m['spec']} 单价:{m['price']} 供应商:{m['supplier']}"
+        for doc_id, m in zip(all_items["ids"], all_items["metadatas"])
+    )
+    prompt = f"""价格库条目列表：
+{items_text}
+
+用户指令：{req.query}
+
+请找出符合用户指令的条目，返回 JSON 数组，每项包含 id 字段。只返回 JSON 数组，不要 markdown。"""
+    resp = zhipu.chat.completions.create(
+        model=GLM_MODEL,
+        messages=[{"role": "user", "content": prompt}],
+    )
+    raw = resp.choices[0].message.content.strip()
+    try:
+        matched_ids = [item["id"] for item in json.loads(raw)]
+    except Exception:
+        raise HTTPException(status_code=500, detail=f"AI 解析失败: {raw[:200]}")
+    matches = [
+        {"id": doc_id, **meta}
+        for doc_id, meta in zip(all_items["ids"], all_items["metadatas"])
+        if doc_id in matched_ids
+    ]
+    return {"matches": matches}
+
+@app.post("/scene1/api/prices/delete-confirm")
+async def delete_confirm(body: dict, _=Depends(verify_token)):
+    """确认删除指定 id 列表"""
+    ids = body.get("ids", [])
+    if ids:
+        collection.delete(ids=ids)
+    return {"deleted": len(ids)}
+
 async def _bulk_insert(items: list) -> dict:
     import uuid
     ok, fail = 0, 0

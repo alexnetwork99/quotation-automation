@@ -475,20 +475,27 @@ footer span{color:var(--steel)}
     <div class="card">
       <div class="table-toolbar">
         <div class="card-title" style="margin-bottom:0">价格库 · Price Database</div>
-        <div style="display:flex;align-items:center;gap:12px">
-          <div class="table-info" id="priceCount">加载中...</div>
-          <button class="btn-danger" onclick="clearPrices()" style="font-size:12px;padding:3px 10px">清空 / Clear</button>
-        </div>
+        <div class="table-info" id="priceCount">加载中...</div>
       </div>
       <table class="price-table">
         <thead>
           <tr>
             <th>品名 / Product</th><th>规格 / Spec</th><th>单价 / Price</th>
-            <th>单位 / Unit</th><th>供应商 / Supplier</th><th></th>
+            <th>单位 / Unit</th><th>供应商 / Supplier</th>
           </tr>
         </thead>
-        <tbody id="priceBody"><tr><td colspan="6" style="color:var(--text-muted);padding:20px 12px">加载中... / Loading...</td></tr></tbody>
+        <tbody id="priceBody"><tr><td colspan="5" style="color:var(--text-muted);padding:20px 12px">加载中... / Loading...</td></tr></tbody>
       </table>
+    </div>
+
+    <div class="card">
+      <div class="card-title">AI 删除 · Smart Delete</div>
+      <div style="font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--text-muted);margin-bottom:12px">用自然语言描述要删除的产品，AI 匹配后预览确认</div>
+      <div style="display:flex;gap:8px">
+        <input id="deleteQuery" placeholder="例如：删除宏达五金的所有产品" style="flex:1" onkeydown="if(event.key==='Enter')previewDelete()">
+        <button class="btn-primary" onclick="previewDelete()" style="margin-top:0;flex-shrink:0">AI 匹配 / Match</button>
+      </div>
+      <div id="deletePreview"></div>
     </div>
   </div>
 </main>
@@ -767,6 +774,59 @@ async function clearPrices() {
 async function delPrice(id) {
   if (!confirm('确认删除？/ Confirm delete?')) return;
   await fetch(`/scene1/api/prices/${id}`, {method:'DELETE', headers:H});
+  loadPrices();
+}
+
+async function previewDelete() {
+  const query = document.getElementById('deleteQuery').value.trim();
+  const previewEl = document.getElementById('deletePreview');
+  if (!query) { previewEl.innerHTML = '<div class="msg err">请输入删除描述</div>'; return; }
+  previewEl.innerHTML = '<div class="msg ok">AI 匹配中...</div>';
+  try {
+    const r = await fetch('/scene1/api/prices/delete-by-query', {method:'POST', headers:H, body:JSON.stringify({query})});
+    const d = await r.json();
+    if (!r.ok) { previewEl.innerHTML = `<div class="msg err">${d.detail}</div>`; return; }
+    if (!d.matches.length) { previewEl.innerHTML = '<div class="msg ok">未找到匹配条目</div>'; return; }
+    const rows = d.matches.map(it => `<tr><td class="name">${it.name}</td><td>${it.spec}</td><td class="price">¥${it.price}</td><td>${it.supplier}</td></tr>`).join('');
+    previewEl.innerHTML = `
+      <div style="margin-top:12px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--amber);margin-bottom:8px">匹配到 ${d.matches.length} 条，确认删除？</div>
+      <table class="price-table" style="margin-bottom:12px"><thead><tr><th>品名</th><th>规格</th><th>单价</th><th>供应商</th></tr></thead><tbody>${rows}</tbody></table>
+      <button class="btn-danger" style="padding:8px 20px;font-size:14px" onclick="confirmDelete(${JSON.stringify(d.matches).replace(/"/g,'&quot;')})">确认删除 / Confirm Delete</button>`;
+  } catch(e) {
+    previewEl.innerHTML = `<div class="msg err">请求失败: ${e.message}</div>`;
+  }
+}
+
+async function confirmDelete(matches) {
+  const ids = matches.map(m => m.id);
+  const r = await fetch('/scene1/api/prices/delete-confirm', {method:'POST', headers:H, body:JSON.stringify({ids})});
+  const d = await r.json();
+  if (!r.ok) return;
+  window._lastDeleted = matches;
+  document.getElementById('deleteQuery').value = '';
+  let timer;
+  document.getElementById('deletePreview').innerHTML = `
+    <div class="msg ok" style="display:flex;justify-content:space-between;align-items:center">
+      <span>已删除 ${d.deleted} 条</span>
+      <button id="undoBtn" class="btn-secondary" style="padding:4px 14px;font-size:13px" onclick="undoDelete()">撤销 / Undo</button>
+    </div>`;
+  timer = setTimeout(() => {
+    const btn = document.getElementById('undoBtn');
+    if (btn) btn.remove();
+  }, 30000);
+  loadPrices();
+}
+
+async function undoDelete() {
+  const items = window._lastDeleted;
+  if (!items || !items.length) return;
+  for (const it of items) {
+    await fetch('/scene1/api/prices', {method:'POST', headers:H, body:JSON.stringify({
+      supplier: it.supplier, name: it.name, spec: it.spec, unit: it.unit, price: it.price
+    })});
+  }
+  window._lastDeleted = null;
+  document.getElementById('deletePreview').innerHTML = '<div class="msg ok">已恢复 / Restored</div>';
   loadPrices();
 }
 </script>
