@@ -168,6 +168,8 @@ textarea{resize:vertical;min-height:90px}
 .msg{padding:10px 14px;border-radius:4px;margin-top:12px;font-size:15px;font-family:'IBM Plex Mono',monospace}
 .msg.err{background:rgba(224,85,85,0.1);border:1px solid rgba(224,85,85,0.3);color:#f08080}
 .msg.ok{background:rgba(46,204,113,0.08);border:1px solid rgba(46,204,113,0.25);color:var(--success)}
+.undo-progress-bg{height:2px;background:rgba(46,204,113,0.2);border-radius:2px;overflow:hidden;margin-top:8px}
+.undo-progress-fill{height:2px;width:100%;background:linear-gradient(90deg,#27ae60,var(--success));border-radius:2px;transition:width linear}
 /* QUOTE RESULT */
 .result-card{
   background:var(--bg-panel);border:1px solid var(--border-glow);
@@ -847,15 +849,25 @@ async function confirmDelete(matches) {
   if (!r.ok) return;
   window._lastDeleted = matches;
   document.getElementById('deleteQuery').value = '';
-  let timer;
   document.getElementById('deletePreview').innerHTML = `
-    <div class="msg ok" style="display:flex;justify-content:space-between;align-items:center">
-      <span>已删除 ${d.deleted} 条</span>
-      <button id="undoBtn" class="btn-secondary" style="padding:4px 14px;font-size:13px" onclick="undoDelete()">撤销 / Undo</button>
+    <div class="msg ok">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <span>已删除 ${d.deleted} 条</span>
+        <button id="undoBtn" class="btn-secondary" style="padding:4px 14px;font-size:13px" onclick="undoDelete()">撤销 / Undo</button>
+      </div>
+      <div class="undo-progress-bg"><div id="undoBar" class="undo-progress-fill"></div></div>
     </div>`;
-  timer = setTimeout(() => {
+  const bar = document.getElementById('undoBar');
+  if (bar) {
+    bar.style.width = '100%';
+    requestAnimationFrame(() => {
+      bar.style.transition = 'width 30s linear';
+      bar.style.width = '0%';
+    });
+  }
+  setTimeout(() => {
     const btn = document.getElementById('undoBtn');
-    if (btn) btn.remove();
+    if (btn) btn.closest('.msg').remove();
   }, 30000);
   loadPrices();
 }
