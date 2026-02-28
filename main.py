@@ -31,6 +31,13 @@ async def verify_token(key: str = Depends(api_key_header)):
     return key
 
 app = FastAPI()
+
+def strip_json(raw: str) -> str:
+    raw = raw.strip()
+    if raw.startswith("```"):
+        raw = re.sub(r"^```[a-z]*\n?", "", raw)
+        raw = re.sub(r"\n?```$", "", raw)
+    return raw.strip()
 zhipu = ZhipuAI(api_key=ZHIPU_API_KEY)
 chroma = chromadb.PersistentClient(path=str(CHROMA_PATH))
 collection = chroma.get_or_create_collection("price_library")
@@ -133,7 +140,7 @@ JSON only, no markdown."""
         model=GLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = resp.choices[0].message.content.strip()
+    raw = strip_json(resp.choices[0].message.content)
     try:
         data = json.loads(raw)
     except Exception:
@@ -190,7 +197,7 @@ async def import_text(req: ImportTextRequest, _=Depends(verify_token)):
         model=GLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = resp.choices[0].message.content.strip()
+    raw = strip_json(resp.choices[0].message.content)
     try:
         items = json.loads(raw)
     except Exception:
@@ -253,7 +260,7 @@ async def delete_by_query(req: DeleteQueryRequest, _=Depends(verify_token)):
         model=GLM_MODEL,
         messages=[{"role": "user", "content": prompt}],
     )
-    raw = resp.choices[0].message.content.strip()
+    raw = strip_json(resp.choices[0].message.content)
     try:
         matched_ids = [item["id"] for item in json.loads(raw)]
     except Exception:
